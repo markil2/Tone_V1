@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 
 import { Button, Icon, Stack, Text, useTheme } from '@/design-system';
@@ -17,8 +17,24 @@ import type { FormCheckExercise, Recording } from '../../domain/entities/form-ch
  */
 const CAN_RECORD = Platform.OS !== 'web';
 
-/** Clip lengths offered when recording is unavailable. */
+/** Clip lengths offered as a fallback when a browser cannot read a video. */
 const SAMPLE_LENGTHS = [10, 20, 30, 45];
+
+async function getVideoDuration(file: File): Promise<number> {
+  const uri = URL.createObjectURL(file);
+
+  try {
+    return await new Promise<number>((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => resolve(Math.max(1, Math.round(video.duration)));
+      video.onerror = () => reject(new Error('The selected video could not be read.'));
+      video.src = uri;
+    });
+  } finally {
+    URL.revokeObjectURL(uri);
+  }
+}
 
 export function RecordStep({
   exercise,
@@ -38,6 +54,8 @@ export function RecordStep({
   const [isRecording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [isCameraReady, setCameraReady] = useState(false);
+  const [isReadingVideo, setReadingVideo] = useState(false);
+  const [webVideoError, setWebVideoError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(autoStart ? 3 : null);
   const startedAt = useRef<number | null>(null);
   const hasAutoStarted = useRef(false);
@@ -117,18 +135,66 @@ export function RecordStep({
   /* ------------------------------- web path -------------------------------- */
 
   if (!CAN_RECORD) {
+    const chooseVideo = async (event: { target: { files?: FileList | null; value: string } }) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      setReadingVideo(true);
+      setWebVideoError(null);
+
+      try {
+        const durationSeconds = await getVideoDuration(file);
+        onRecorded({
+          uri: null,
+          durationSeconds,
+          recordedAt: new Date().toISOString(),
+        });
+      } catch {
+        setWebVideoError('That video could not be opened. Try recording a shorter clip.');
+      } finally {
+        setReadingVideo(false);
+        event.target.value = '';
+      }
+    };
+
     return (
       <Stack gap="lg">
         <Text variant="heading">{exercise.name}</Text>
 
         <GlowCard>
           <Stack gap="sm">
-            <Text variant="callout">Recording needs a development build</Text>
+            <Text variant="callout">Record your set</Text>
             <Text variant="caption" color="muted">
-              Video capture uses native camera APIs that the browser build does not include.
-              On a phone you can record here directly. Meanwhile, pick a clip length to see
-              what the analysis returns.
+              Tap below to open your phone camera. You can record a new clip or choose one
+              already on your device. Nothing is uploaded.
             </Text>
+            {createElement('input', {
+              type: 'file',
+              accept: 'video/*',
+              capture: 'environment',
+              disabled: isReadingVideo,
+              'aria-label': 'Record or choose a workout video',
+              onChange: chooseVideo,
+              style: {
+                width: '100%',
+                color: theme.colors.text,
+                fontSize: 16,
+                padding: 12,
+                borderRadius: theme.radius.md,
+                border: `1px solid ${theme.colors.border}`,
+                background: theme.colors.surface,
+              },
+            })}
+            {isReadingVideo ? (
+              <Text variant="caption" color="muted">
+                Reading video…
+              </Text>
+            ) : null}
+            {webVideoError ? (
+              <Text variant="caption" color="danger">
+                {webVideoError}
+              </Text>
+            ) : null}
           </Stack>
         </GlowCard>
 
@@ -136,7 +202,7 @@ export function RecordStep({
 
         <Stack gap="sm">
           <Text variant="caption" color="muted" style={{ letterSpacing: 0.6 }}>
-            CLIP LENGTH
+            DEMO WITHOUT A VIDEO
           </Text>
           <Stack direction="row" gap="sm">
             {SAMPLE_LENGTHS.map((seconds) => (
