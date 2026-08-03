@@ -117,7 +117,7 @@ export const FORM_CHECK_EXERCISES: FormCheckExercise[] = [
     name: 'Push-Up',
     muscleGroup: 'chest',
     secondsPerRep: 2.5,
-    watchPoints: ['Hip alignment', 'Elbow angle', 'Depth', 'Head position'],
+    watchPoints: ['Elbow angle', 'Depth', 'Head position'],
   },
   {
     id: 'bulgarian-split-squat',

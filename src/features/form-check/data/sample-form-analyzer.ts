@@ -148,12 +148,6 @@ const CUE_LIBRARY: Record<string, FormCue[]> = {
   ],
   'push-up': [
     {
-      id: 'hips',
-      severity: 'fix',
-      title: 'Hip alignment',
-      detail: 'Squeeze the glutes so the hips travel with the shoulders instead of sagging.',
-    },
-    {
       id: 'depth',
       severity: 'watch',
       title: 'Depth',
